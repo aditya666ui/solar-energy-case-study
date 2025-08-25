@@ -1,10 +1,9 @@
-cat > README.md <<'EOF'
 # Solar Energy Case Study (Snowflake + Azure Functions + SWA + React)
 
 A **no-cost** demo that ingests free solar/weather signals, stores them in **Snowflake**, serves APIs from **Azure Functions (Python v2)**, and visualizes them in a **React** SPA hosted on **Azure Static Web Apps (SWA)**.
 
-- **Web App:** https://green-forest-02e10980f.2.azurestaticapps.net
-- **Functions (base):** https://func-solar-15013.azurewebsites.net/api
+- **Web App:** https://green-forest-02e10980f.2.azurestaticapps.net  
+- **Functions (base):** https://func-solar-15013.azurewebsites.net/api  
 - **Repo:** https://github.com/aditya666ui/solar-energy-case-study
 
 ---
@@ -27,7 +26,7 @@ flowchart LR
     M[(MART.FORECAST_7D\nMART.SUMMARIES)]
   end
 
-  subgraph Free Data
+  subgraph Free_Data
     Z[Zippopotam.us\nZIP→lat/lon]
     O[Open-Meteo\nhourly radiation]
   end
@@ -42,8 +41,8 @@ flowchart LR
   A -->|WRITE| M
   A -->|READ| M
 
-  A -->|ZIP geocode| Z
-  A -->|hourly data| O
+  A -.->|ZIP geocode| Z
+  A -.->|hourly data| O
 
   subgraph Schedules
     T1[Timer: ingest\n(dev: minutely, prod: daily)]
