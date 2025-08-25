@@ -31,3 +31,7 @@ export function fetchGhiTrend(zip, days = 7) {
   const q = new URLSearchParams({ zip, days: String(days) });
   return getJson(`${API}/ghitrend?${q.toString()}`);
 }
+export function fetchGhiTrendRange(zip, start, end) {
+  const q = new URLSearchParams({ zip, start, end });
+  return getJson(`${API}/ghitrend?${q.toString()}`);
+}

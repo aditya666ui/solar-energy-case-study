@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { fetchSummaries, fetchGhiToday, fetchZips, fetchGhiTrend } from "./api/client";
+import { fetchSummaries, fetchGhiToday, fetchZips, fetchGhiTrend, fetchGhiTrendRange } from "./api/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
 import { downloadCsv } from "./utils/exportCsv";
 
 export default function App() {
+  const [startDate, setStartDate] = useState(""); // "YYYY-MM-DD"
+const [endDate, setEndDate] = useState("");     // "YYYY-MM-DD"
   const [summaries, setSummaries] = useState([]);
   const [ghiToday, setGhiToday] = useState([]);
   const [zips, setZips] = useState([]);
@@ -29,17 +31,22 @@ export default function App() {
   }, []);
 
   // load trend whenever zip or days change
-  useEffect(() => {
-    if (!zip) return;
-    (async () => {
-      try {
-        const t = await fetchGhiTrend(zip, trendDays);
-        setTrend(t.series || []);
-      } catch (e) {
-        setErr(e.message || "Failed to load trend");
+ useEffect(() => {
+  if (!zip) return;
+  (async () => {
+    try {
+      let t;
+      if (startDate && endDate) {
+        t = await fetchGhiTrendRange(zip, startDate, endDate);
+      } else {
+        t = await fetchGhiTrend(zip, trendDays);
       }
-    })();
-  }, [zip, trendDays]);
+      setTrend(t.series || []);
+    } catch (e) {
+      setErr(e.message || "Failed to load trend");
+    }
+  })();
+}, [zip, trendDays, startDate, endDate]);
 
   return (
     <div style={{ padding: 24, maxWidth: 1000, margin: "0 auto", fontFamily: "system-ui, Arial" }}>
@@ -110,51 +117,93 @@ export default function App() {
 
       {/* trend */}
       <section style={{ marginTop: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h2 style={{ margin: 0 }}>GHI Trend</h2>
-          <label>
-            ZIP:&nbsp;
-            <select value={zip} onChange={e => setZip(e.target.value)}>
-              {zips.map(z => (
-                <option key={z} value={z}>{z}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Days:&nbsp;
-            <select value={trendDays} onChange={e => setTrendDays(Number(e.target.value))}>
-              <option value={7}>7</option>
-              <option value={14}>14</option>
-              <option value={30}>30</option>
-            </select>
-          </label>
-          <button
+  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+    <h2 style={{ margin: 0 }}>GHI Trend</h2>
+
+    <label>
+      ZIP:&nbsp;
+      <select value={zip} onChange={e => setZip(e.target.value)}>
+        {zips.map(z => (
+          <option key={z} value={z}>{z}</option>
+        ))}
+      </select>
+    </label>
+
+    {/* Quick "Days" mode */}
+    <label>
+      Days:&nbsp;
+      <select
+        value={trendDays}
+        onChange={e => {
+          setTrendDays(Number(e.target.value));
+          // clear range mode if switching to days
+          setStartDate(""); setEndDate("");
+        }}
+      >
+        <option value={7}>7</option>
+        <option value={14}>14</option>
+        <option value={30}>30</option>
+      </select>
+    </label>
+
+    {/* Range mode */}
+    <span style={{ marginLeft: 8, color: "#666" }}>or pick a date range:</span>
+    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+    <span>to</span>
+    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+    <button
+      onClick={() => {
+        // if both dates filled, we’ll fetch in range mode via useEffect below
+        // otherwise stay in 'days' mode
+        if (startDate && endDate) {
+          // force a refresh by bumping trendDays to itself
+          setTrendDays(d => d);
+        }
+      }}
+      disabled={!(startDate && endDate)}
+    >
+      Apply
+    </button>
+    <button
+      onClick={() => {
+        setStartDate(""); setEndDate("");
+        setTrendDays(7);
+      }}
+      disabled={!(startDate || endDate)}
+    >
+      Clear
+    </button>
+
+    {/* Export CSV (works for either mode) */}
+    <button
       disabled={!trend?.length}
       onClick={() => {
+        const label = (startDate && endDate)
+          ? `${startDate}_to_${endDate}`
+          : `${trendDays}d`;
         const today = new Date().toISOString().slice(0,10);
-        const fname = `ghi_trend_${zip}_${trendDays}d_${today}.csv`;
         const headers = ["OBS_DATE", "GHI_MEAN"];
         const rows = trend.map(r => [r.OBS_DATE, typeof r.GHI_MEAN === "number" ? r.GHI_MEAN.toFixed(2) : r.GHI_MEAN]);
-        downloadCsv(fname, headers, rows);
+        downloadCsv(`ghi_trend_${zip}_${label}_${today}.csv`, headers, rows);
       }}
     >
       Export CSV
     </button>
-        </div>
+  </div>
 
-        <div style={{ width: "100%", height: 340, marginTop: 12, background: "#0b0b0b08", borderRadius: 8 }}>
-          <ResponsiveContainer>
-            <LineChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="OBS_DATE" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="GHI_MEAN" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+  <div style={{ width: "100%", height: 340, marginTop: 12, background: "#0b0b0b08", borderRadius: 8 }}>
+    <ResponsiveContainer>
+      <LineChart data={trend}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="OBS_DATE" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Line type="monotone" dataKey="GHI_MEAN" dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  </div>
+</section>
     </div>
   );
 }

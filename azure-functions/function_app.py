@@ -4,6 +4,8 @@ from datetime import date
 import requests
 import snowflake.connector
 import azure.functions as func
+import re
+from datetime import datetime, date, timedelta
 
 # v2 Python model: you MUST define this
 app = func.FunctionApp()
@@ -362,52 +364,83 @@ def list_zips(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="ghitrend", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def ghi_trend(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        # inputs
         raw_zip = (req.params.get("zip") or "").strip()
-        days = req.params.get("days")
-        try:
-            days = int(days) if days is not None else 7
-        except ValueError:
-            days = 7
-        # clamp days to a safe range
-        days = max(3, min(days, 60))
+        days_param = req.params.get("days")
+        start = (req.params.get("start") or "").strip()   # YYYY-MM-DD
+        end = (req.params.get("end") or "").strip()       # YYYY-MM-DD
 
-        # allowed zips = from env
-        raw_list = os.getenv("ZIP_LIST", "")
-        allowed = [z.strip() for z in raw_list.split(",") if z.strip()]
+        # allowed zips from env
+        allowed = [z.strip() for z in (os.getenv("ZIP_LIST", "")).split(",") if z.strip()]
         if not allowed:
             return func.HttpResponse(json.dumps({"error": "ZIP_LIST not configured"}), mimetype="application/json", status_code=500)
 
-        # default to first env ZIP if none provided
         if not raw_zip:
             raw_zip = allowed[0]
 
         if raw_zip not in allowed:
             return func.HttpResponse(json.dumps({"error": f"zip {raw_zip} not allowed"}), mimetype="application/json", status_code=400)
 
-        # query Snowflake
+        # validate dates if provided
+        iso = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        use_range = False
+        if start and end:
+            if not iso.match(start) or not iso.match(end):
+                return func.HttpResponse(json.dumps({"error": "start/end must be YYYY-MM-DD"}), mimetype="application/json", status_code=400)
+            # (optional) sanity range clamp to 60 days
+            d_start = datetime.strptime(start, "%Y-%m-%d").date()
+            d_end = datetime.strptime(end, "%Y-%m-%d").date()
+            if d_start > d_end:
+                d_start, d_end = d_end, d_start
+            if (d_end - d_start).days > 60:
+                d_start = d_end - timedelta(days=60)
+            start = d_start.isoformat()
+            end = d_end.isoformat()
+            use_range = True
+        else:
+            # fall back to days (default 7, clamp 3..60)
+            try:
+                days = int(days_param) if days_param is not None else 7
+            except ValueError:
+                days = 7
+            days = max(3, min(days, 60))
+
+        # snowflake
         conn = _snowflake_conn("RAW")
         cur = conn.cursor()
         cur.execute(f"USE WAREHOUSE {SNOWFLAKE_WAREHOUSE}")
         cur.execute(f"USE DATABASE {SNOWFLAKE_DB}")
         cur.execute("USE SCHEMA RAW")
 
-        # last N days including today
-        sql = f"""
-            SELECT
-                TO_VARCHAR(OBS_DATE) AS OBS_DATE,
-                AVG(GHI) AS GHI_MEAN
-            FROM SOLAR_DB.RAW.SOLAR_OBS
-            WHERE ZIP = '{raw_zip}'
-              AND OBS_DATE >= DATEADD(day, -{days-1}, CURRENT_DATE())
-            GROUP BY OBS_DATE
-            ORDER BY OBS_DATE
-        """
+        if use_range:
+            sql = f"""
+                SELECT TO_VARCHAR(OBS_DATE) AS OBS_DATE, AVG(GHI) AS GHI_MEAN
+                FROM SOLAR_DB.RAW.SOLAR_OBS
+                WHERE ZIP = '{raw_zip}'
+                  AND OBS_DATE BETWEEN TO_DATE('{start}') AND TO_DATE('{end}')
+                GROUP BY OBS_DATE
+                ORDER BY OBS_DATE
+            """
+        else:
+            sql = f"""
+                SELECT TO_VARCHAR(OBS_DATE) AS OBS_DATE, AVG(GHI) AS GHI_MEAN
+                FROM SOLAR_DB.RAW.SOLAR_OBS
+                WHERE ZIP = '{raw_zip}'
+                  AND OBS_DATE >= DATEADD(day, -{days-1}, CURRENT_DATE())
+                GROUP BY OBS_DATE
+                ORDER BY OBS_DATE
+            """
         cur.execute(sql)
         rows = cur.fetchall()
         data = [{"OBS_DATE": d, "GHI_MEAN": float(v or 0)} for (d, v) in rows]
 
-        return func.HttpResponse(json.dumps({"zip": raw_zip, "days": days, "series": data}), mimetype="application/json", status_code=200)
+        payload = {"zip": raw_zip, "series": data}
+        if use_range:
+            payload.update({"start": start, "end": end})
+        else:
+            payload.update({"days": days})
+
+        return func.HttpResponse(json.dumps(payload), mimetype="application/json", status_code=200)
+
     except Exception as e:
         logging.exception("ghitrend error")
         return func.HttpResponse(json.dumps({"error": str(e)}), mimetype="application/json", status_code=500)
