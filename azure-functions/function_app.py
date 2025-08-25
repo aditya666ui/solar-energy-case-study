@@ -343,3 +343,76 @@ def ghi_today(req: func.HttpRequest) -> func.HttpResponse:
             conn.close()
         except Exception:
             pass
+
+# ---------- Trend endpoints ----------
+import os
+import json
+
+@app.route(route="zips", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
+def list_zips(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        raw = os.getenv("ZIP_LIST", "")
+        zips = [z.strip() for z in raw.split(",") if z.strip()]
+        zips = sorted(set(zips))
+        return func.HttpResponse(json.dumps(zips), mimetype="application/json", status_code=200)
+    except Exception as e:
+        logging.exception("zips error")
+        return func.HttpResponse(json.dumps({"error": str(e)}), mimetype="application/json", status_code=500)
+
+@app.route(route="ghitrend", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
+def ghi_trend(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        # inputs
+        raw_zip = (req.params.get("zip") or "").strip()
+        days = req.params.get("days")
+        try:
+            days = int(days) if days is not None else 7
+        except ValueError:
+            days = 7
+        # clamp days to a safe range
+        days = max(3, min(days, 60))
+
+        # allowed zips = from env
+        raw_list = os.getenv("ZIP_LIST", "")
+        allowed = [z.strip() for z in raw_list.split(",") if z.strip()]
+        if not allowed:
+            return func.HttpResponse(json.dumps({"error": "ZIP_LIST not configured"}), mimetype="application/json", status_code=500)
+
+        # default to first env ZIP if none provided
+        if not raw_zip:
+            raw_zip = allowed[0]
+
+        if raw_zip not in allowed:
+            return func.HttpResponse(json.dumps({"error": f"zip {raw_zip} not allowed"}), mimetype="application/json", status_code=400)
+
+        # query Snowflake
+        conn = _snowflake_conn("RAW")
+        cur = conn.cursor()
+        cur.execute(f"USE WAREHOUSE {SNOWFLAKE_WAREHOUSE}")
+        cur.execute(f"USE DATABASE {SNOWFLAKE_DB}")
+        cur.execute("USE SCHEMA RAW")
+
+        # last N days including today
+        sql = f"""
+            SELECT
+                TO_VARCHAR(OBS_DATE) AS OBS_DATE,
+                AVG(GHI) AS GHI_MEAN
+            FROM SOLAR_DB.RAW.SOLAR_OBS
+            WHERE ZIP = '{raw_zip}'
+              AND OBS_DATE >= DATEADD(day, -{days-1}, CURRENT_DATE())
+            GROUP BY OBS_DATE
+            ORDER BY OBS_DATE
+        """
+        cur.execute(sql)
+        rows = cur.fetchall()
+        data = [{"OBS_DATE": d, "GHI_MEAN": float(v or 0)} for (d, v) in rows]
+
+        return func.HttpResponse(json.dumps({"zip": raw_zip, "days": days, "series": data}), mimetype="application/json", status_code=200)
+    except Exception as e:
+        logging.exception("ghitrend error")
+        return func.HttpResponse(json.dumps({"error": str(e)}), mimetype="application/json", status_code=500)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
