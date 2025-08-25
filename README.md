@@ -12,8 +12,7 @@ All Snowflake objects are versioned in [/sql](/sql):
 - `001_init_warehouse_db_schemas.sql` — warehouse, DB, schemas
 - `010_raw_tables.sql` — RAW tables
 - `020_mart_objects.sql` — MART tables
-- `030_forecast_view.sql` — optional view for 7d MA
-- `031_forecast_7d_table_and_refresh.sql` — forecast table + refresh
+- `030_refresh_forecast_7d.sql` — optional view for 7d MA
 - `040_verify_queries.sql` — validation queries
 - `050_show_objects.sql` — object listings
 - `090_maintenance.sql` — cleanup helpers
