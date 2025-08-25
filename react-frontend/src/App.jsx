@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchSummaries, fetchGhiToday, fetchZips, fetchGhiTrend } from "./api/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
+import { downloadCsv } from "./utils/exportCsv";
 
 export default function App() {
   const [summaries, setSummaries] = useState([]);
@@ -59,7 +60,22 @@ export default function App() {
                 <strong>{s.ZIP}:</strong> {s.SUMMARY_TEXT}
               </li>
             ))}
+            {summaries.length > 0 && (
+  <div style={{ marginTop: 8 }}>
+    <button
+      onClick={() => {
+        const today = new Date().toISOString().slice(0,10);
+        const headers = ["ZIP", "SUMMARY_TEXT"];
+        const rows = summaries.map(s => [s.ZIP, s.SUMMARY_TEXT]);
+        downloadCsv(`summaries_${today}.csv`, headers, rows);
+      }}
+    >
+      Export Summaries CSV
+    </button>
+  </div>
+)}
           </ul>
+          
         )}
       </section>
 
@@ -77,6 +93,19 @@ export default function App() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+        <div style={{ marginTop: 8 }}>
+  <button
+    disabled={!ghiToday?.length}
+    onClick={() => {
+      const today = new Date().toISOString().slice(0,10);
+      const headers = ["ZIP", "GHI_MEAN"];
+      const rows = ghiToday.map(r => [r.ZIP, (r.GHI_MEAN ?? 0).toFixed(2)]);
+      downloadCsv(`ghi_today_${today}.csv`, headers, rows);
+    }}
+  >
+    Export Today CSV
+  </button>
+</div>
       </section>
 
       {/* trend */}
@@ -99,6 +128,18 @@ export default function App() {
               <option value={30}>30</option>
             </select>
           </label>
+          <button
+      disabled={!trend?.length}
+      onClick={() => {
+        const today = new Date().toISOString().slice(0,10);
+        const fname = `ghi_trend_${zip}_${trendDays}d_${today}.csv`;
+        const headers = ["OBS_DATE", "GHI_MEAN"];
+        const rows = trend.map(r => [r.OBS_DATE, typeof r.GHI_MEAN === "number" ? r.GHI_MEAN.toFixed(2) : r.GHI_MEAN]);
+        downloadCsv(fname, headers, rows);
+      }}
+    >
+      Export CSV
+    </button>
         </div>
 
         <div style={{ width: "100%", height: 340, marginTop: 12, background: "#0b0b0b08", borderRadius: 8 }}>
