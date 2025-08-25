@@ -1,0 +1,4 @@
+azure-functions
+requests
+snowflake-connector-python
+python-dotenv
