@@ -6,8 +6,7 @@ A **no-cost** demo that ingests free solar/weather signals, stores them in **Sno
 - **Functions (base):** https://func-solar-15013.azurewebsites.net/api  
 - **Repo:** https://github.com/aditya666ui/solar-energy-case-study
 
----
-
+```markdown
 ## Architecture
 
 ```mermaid
@@ -18,17 +17,17 @@ flowchart LR
 
   subgraph Azure
     F[Azure Static Web Apps]
-    A[Azure Functions\n(Python v2)]
+    A[Azure Functions<br/>(Python v2)]
   end
 
   subgraph Snowflake
     R[(RAW.SOLAR_OBS)]
-    M[(MART.FORECAST_7D\nMART.SUMMARIES)]
+    M[(MART.FORECAST_7D<br/>MART.SUMMARIES)]
   end
 
   subgraph Free_Data
-    Z[Zippopotam.us\nZIP→lat/lon]
-    O[Open-Meteo\nhourly radiation]
+    Z[Zippopotam.us<br/>ZIP->lat/lon]
+    O[Open-Meteo<br/>hourly radiation]
   end
 
   B --> F
@@ -45,8 +44,8 @@ flowchart LR
   A -.->|hourly data| O
 
   subgraph Schedules
-    T1[Timer: ingest\n(dev: minutely, prod: daily)]
-    T2[Timer: insights +\n7d MA forecast]
+    T1[Timer: ingest<br/>(dev: minutely, prod: daily)]
+    T2[Timer: insights +<br/>7d MA forecast]
   end
 
   T1 --> A
