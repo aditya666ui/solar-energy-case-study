@@ -6,6 +6,18 @@ A **no-cost** demo that ingests free solar/weather signals, stores them in **Sno
 - **Functions (base):** https://func-solar-15013.azurewebsites.net/api  
 - **Repo:** https://github.com/aditya666ui/solar-energy-case-study
 
+## Snowflake SQL (IaC)
+All Snowflake objects are versioned in [/sql](/sql):
+
+- `001_init_warehouse_db_schemas.sql` — warehouse, DB, schemas
+- `010_raw_tables.sql` — RAW tables
+- `020_mart_objects.sql` — MART tables
+- `030_forecast_view.sql` — optional view for 7d MA
+- `031_forecast_7d_table_and_refresh.sql` — forecast table + refresh
+- `040_verify_queries.sql` — validation queries
+- `050_show_objects.sql` — object listings
+- `090_maintenance.sql` — cleanup helpers
+
 ```markdown
 ## Architecture
 
