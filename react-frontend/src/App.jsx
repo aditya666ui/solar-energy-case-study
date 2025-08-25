@@ -1,3 +1,4 @@
+import "./styles.css";
 import { useEffect, useState } from "react";
 import {
   fetchSummaries,
@@ -9,22 +10,14 @@ import {
   fetchStatus
 } from "./api/client";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, LineChart, Line, Legend
 } from "recharts";
 import { downloadCsv } from "./utils/exportCsv";
 
 export default function App() {
-  const [startDate, setStartDate] = useState(""); // "YYYY-MM-DD"
-  const [endDate, setEndDate] = useState("");     // "YYYY-MM-DD"
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [summaries, setSummaries] = useState([]);
   const [ghiToday, setGhiToday] = useState([]);
   const [zips, setZips] = useState([]);
@@ -35,116 +28,90 @@ export default function App() {
   const [statusData, setStatusData] = useState(null);
   const [err, setErr] = useState("");
 
-  // initial load (summaries, today, zips)
+  // initial load
   useEffect(() => {
     (async () => {
       try {
-        const [s, g, z] = await Promise.all([
-          fetchSummaries(),
-          fetchGhiToday(),
-          fetchZips()
-        ]);
-        setSummaries(s);
-        setGhiToday(g);
-        setZips(z);
+        const [s, g, z] = await Promise.all([fetchSummaries(), fetchGhiToday(), fetchZips()]);
+        setSummaries(s); setGhiToday(g); setZips(z);
         if (z?.length && !zip) setZip(z[0]);
-      } catch (e) {
-        setErr(e.message || "Failed to load data");
-      }
+      } catch (e) { setErr(e.message || "Failed to load data"); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // status load (on mount + manual refresh button)
+  // status once
   useEffect(() => {
     (async () => {
-      try {
-        const s = await fetchStatus();
-        setStatusData(s);
-      } catch (e) {
-        setErr(e.message || "Failed to load status");
-      }
+      try { setStatusData(await fetchStatus()); }
+      catch (e) { setErr(e.message || "Failed to load status"); }
     })();
   }, []);
 
-  // forecast loads only in "Days" mode (not when a custom date range is active)
+  // forecast only in Days mode
   useEffect(() => {
-    if (!zip || startDate || endDate) {
-      setForecast([]);
-      return;
-    }
+    if (!zip || startDate || endDate) { setForecast([]); return; }
     (async () => {
-      try {
-        const f = await fetchForecast(zip, trendDays);
-        setForecast(f.series || []);
-      } catch (e) {
-        setErr(e.message || "Failed to load forecast");
-      }
+      try { const f = await fetchForecast(zip, trendDays); setForecast(f.series || []); }
+      catch (e) { setErr(e.message || "Failed to load forecast"); }
     })();
   }, [zip, trendDays, startDate, endDate]);
 
-  // trend loads on zip/days change or when date range is set
+  // trend
   useEffect(() => {
     if (!zip) return;
     (async () => {
       try {
-        let t;
-        if (startDate && endDate) {
-          t = await fetchGhiTrendRange(zip, startDate, endDate);
-        } else {
-          t = await fetchGhiTrend(zip, trendDays);
-        }
+        const t = (startDate && endDate)
+          ? await fetchGhiTrendRange(zip, startDate, endDate)
+          : await fetchGhiTrend(zip, trendDays);
         setTrend(t.series || []);
-      } catch (e) {
-        setErr(e.message || "Failed to load trend");
-      }
+      } catch (e) { setErr(e.message || "Failed to load trend"); }
     })();
   }, [zip, trendDays, startDate, endDate]);
 
   return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: "0 auto", fontFamily: "system-ui, Arial" }}>
-      <h1 style={{ marginBottom: 4 }}>Solar Potential Dashboard</h1>
-      <div style={{ color: "#666" }}>Live from Snowflake via Azure Functions</div>
+    <div className="container">
+      <header className="header">
+        <div className="h1">Solar Potential Dashboard</div>
+        <div className="sub">Live from Snowflake via Azure Functions</div>
+      </header>
 
-      {err && <div style={{ marginTop: 16, color: "crimson" }}>Error: {err}</div>}
+      {err && <div className="card" style={{ borderColor:"rgba(239,68,68,.5)" }}>
+        <strong style={{ color:"var(--danger)" }}>Error:</strong> {err}
+      </div>}
 
-      {/* status */}
-      <section style={{ marginTop: 20, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <h2 style={{ margin: 0 }}>Status</h2>
-          <div style={{ fontSize: 12, color: "#666" }}>
+      {/* STATUS */}
+      <section className="card">
+        <div className="toolbar" style={{ justifyContent:"space-between" }}>
+          <h2 style={{ margin:0 }}>Status</h2>
+          <div style={{ fontSize:12, color:"var(--muted)" }}>
             {statusData?.server_time_utc ? `Updated: ${statusData.server_time_utc}` : "—"}
-            <button
-              style={{ marginLeft: 12 }}
+            <button className="btn" style={{ marginLeft:12 }}
               onClick={async () => {
-                try {
-                  const s = await fetchStatus();
-                  setStatusData(s);
-                } catch (e) {
-                  setErr(e.message || "Failed to refresh status");
-                }
-              }}
-            >
-              Refresh
-            </button>
+                try { setStatusData(await fetchStatus()); }
+                catch(e){ setErr(e.message || "Failed to refresh status"); }
+              }}>Refresh</button>
           </div>
         </div>
 
         {!statusData ? (
-          <div style={{ color: "#666", marginTop: 8 }}>Loading…</div>
+          <div style={{ color:"var(--muted)", marginTop:8 }}>Loading…</div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+            <div className="toolbar" style={{ gap:16, marginTop:8, flexWrap:"wrap" }}>
               {statusData.per_zip.map((pz) => {
                 const okIngest = pz.INGEST_TODAY;
                 const okFc = pz.FORECAST_7D;
                 const allOk = okIngest && okFc;
-                const bg = allOk ? "#e6ffed" : (okIngest || okFc) ? "#fff7e6" : "#ffe6e6";
+                const cls = allOk ? "statusChip status-ok"
+                          : (okIngest || okFc) ? "statusChip status-warn"
+                          : "statusChip status-fail";
                 const badge = allOk ? "OK" : (okIngest || okFc) ? "WARN" : "FAIL";
                 return (
-                  <div key={pz.ZIP} style={{ padding: 10, borderRadius: 6, background: bg, minWidth: 200 }}>
-                    <div style={{ fontWeight: 600 }}>{pz.ZIP} — {badge}</div>
-                    <div style={{ fontSize: 13, color: "#444" }}>
+                  <div key={pz.ZIP} className={cls}>
+                    <div style={{ fontWeight:600 }}>{pz.ZIP} — {badge}</div>
+                    <div style={{ fontSize:13, color:"var(--text)" }}>
                       Ingest today: {okIngest ? "Yes" : "No"} • Forecast 7d: {okFc ? "Yes" : "No"}
                     </div>
                   </div>
@@ -152,27 +119,27 @@ export default function App() {
               })}
             </div>
 
-            <details style={{ marginTop: 10 }}>
+            <details style={{ marginTop:10 }}>
               <summary>Details</summary>
-              <div style={{ marginTop: 8, fontSize: 14 }}>
+              <div style={{ marginTop:8, fontSize:14 }}>
                 <div><strong>Summaries today:</strong> {statusData.summaries.TODAY_SUMMARIES}</div>
                 <div><strong>Last summary created:</strong> {statusData.summaries.LAST_CREATED || "—"}</div>
               </div>
-              <div style={{ marginTop: 8 }}>
+              <div style={{ marginTop:8 }}>
                 <strong>Ingestion</strong>
-                <ul style={{ marginTop: 4 }}>
-                  {statusData.ingestion.map((r, i) => (
-                    <li key={i} style={{ fontSize: 14 }}>
+                <ul style={{ marginTop:4 }}>
+                  {statusData.ingestion.map((r,i)=>(
+                    <li key={i} style={{ fontSize:14 }}>
                       {r.ZIP}: last_obs = {r.LAST_OBS || "—"}, today_rows = {r.TODAY_ROWS}
                     </li>
                   ))}
                 </ul>
               </div>
-              <div style={{ marginTop: 8 }}>
+              <div style={{ marginTop:8 }}>
                 <strong>Forecast table</strong>
-                <ul style={{ marginTop: 4 }}>
-                  {statusData.forecast.map((f, i) => (
-                    <li key={i} style={{ fontSize: 14 }}>
+                <ul style={{ marginTop:4 }}>
+                  {statusData.forecast.map((f,i)=>(
+                    <li key={i} style={{ fontSize:14 }}>
                       {f.ZIP}: days={f.DAYS}, range={f.FIRST_DATE || "—"} → {f.LAST_DATE || "—"}
                     </li>
                   ))}
@@ -183,173 +150,134 @@ export default function App() {
         )}
       </section>
 
-      {/* summaries */}
-      <section style={{ marginTop: 24 }}>
-        <h2>Summaries (today)</h2>
+      {/* SUMMARIES */}
+      <section className="card">
+        <div className="toolbar" style={{ justifyContent:"space-between" }}>
+          <h2 style={{ margin:0 }}>Summaries (today)</h2>
+          <button className="btn"
+            disabled={!summaries?.length}
+            onClick={()=>{
+              const today = new Date().toISOString().slice(0,10);
+              downloadCsv(`summaries_${today}.csv`,
+                ["ZIP","SUMMARY_TEXT"],
+                summaries.map(s=>[s.ZIP,s.SUMMARY_TEXT]));
+            }}>Export CSV</button>
+        </div>
+
         {summaries.length === 0 ? (
-          <div>No summaries yet for today.</div>
+          <div style={{ color:"var(--muted)" }}>No summaries yet for today.</div>
         ) : (
-          <>
-            <ul>
-              {summaries.map((s, i) => (
-                <li key={i} style={{ margin: "6px 0" }}>
-                  <strong>{s.ZIP}:</strong> {s.SUMMARY_TEXT}
-                </li>
-              ))}
-            </ul>
-            <div style={{ marginTop: 8 }}>
-              <button
-                onClick={() => {
-                  const today = new Date().toISOString().slice(0, 10);
-                  const headers = ["ZIP", "SUMMARY_TEXT"];
-                  const rows = summaries.map(s => [s.ZIP, s.SUMMARY_TEXT]);
-                  downloadCsv(`summaries_${today}.csv`, headers, rows);
-                }}
-              >
-                Export Summaries CSV
-              </button>
-            </div>
-          </>
+          <ul style={{ marginTop:10 }}>
+            {summaries.map((s,i)=>(
+              <li key={i} style={{ margin:"6px 0" }}>
+                <strong>{s.ZIP}:</strong> {s.SUMMARY_TEXT}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
-      {/* today bar */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Today’s Avg GHI by ZIP (W/m²)</h2>
-        <div style={{ width: "100%", height: 320, background: "#0b0b0b08", borderRadius: 8 }}>
+      {/* TODAY BAR */}
+      <section className="card">
+        <div className="toolbar" style={{ justifyContent:"space-between" }}>
+          <h2 style={{ margin:0 }}>Today’s Avg GHI by ZIP (W/m²)</h2>
+          <button className="btn"
+            disabled={!ghiToday?.length}
+            onClick={()=>{
+              const today = new Date().toISOString().slice(0,10);
+              downloadCsv(`ghi_today_${today}.csv`,
+                ["ZIP","GHI_MEAN"],
+                ghiToday.map(r=>[r.ZIP,(r.GHI_MEAN??0).toFixed(2)]));
+            }}>Export CSV</button>
+        </div>
+
+        <div className="chart">
           <ResponsiveContainer>
             <BarChart data={ghiToday}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="ZIP" />
-              <YAxis />
+              <XAxis dataKey="ZIP" stroke="var(--muted)"/>
+              <YAxis stroke="var(--muted)"/>
               <Tooltip />
-              <Bar dataKey="GHI_MEAN" />
+              <Bar dataKey="GHI_MEAN" fill="var(--accent)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ marginTop: 8 }}>
-          <button
-            disabled={!ghiToday?.length}
-            onClick={() => {
-              const today = new Date().toISOString().slice(0, 10);
-              const headers = ["ZIP", "GHI_MEAN"];
-              const rows = ghiToday.map(r => [r.ZIP, (r.GHI_MEAN ?? 0).toFixed(2)]);
-              downloadCsv(`ghi_today_${today}.csv`, headers, rows);
-            }}
-          >
-            Export Today CSV
-          </button>
-        </div>
       </section>
 
-      {/* trend */}
-      <section style={{ marginTop: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h2 style={{ margin: 0 }}>GHI Trend</h2>
+      {/* TREND */}
+      <section className="card">
+        <div className="toolbar">
+          <h2 style={{ margin:0 }}>GHI Trend</h2>
 
-          <label>
-            ZIP:&nbsp;
-            <select value={zip} onChange={e => setZip(e.target.value)}>
-              {zips.map(z => (
-                <option key={z} value={z}>{z}</option>
-              ))}
+          <label>ZIP:&nbsp;
+            <select value={zip} onChange={e=>setZip(e.target.value)}>
+              {zips.map(z=>(<option key={z} value={z}>{z}</option>))}
             </select>
           </label>
 
-          {/* Quick "Days" mode */}
-          <label>
-            Days:&nbsp;
-            <select
-              value={trendDays}
-              onChange={e => {
-                setTrendDays(Number(e.target.value));
-                // clear range mode if switching to days
-                setStartDate(""); setEndDate("");
-              }}
-            >
+          <label>Days:&nbsp;
+            <select value={trendDays}
+              onChange={e=>{ setTrendDays(Number(e.target.value)); setStartDate(""); setEndDate(""); }}>
               <option value={7}>7</option>
               <option value={14}>14</option>
               <option value={30}>30</option>
             </select>
           </label>
 
-          {/* Range mode */}
-          <span style={{ marginLeft: 8, color: "#666" }}>or pick a date range:</span>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          <span style={{ color:"var(--muted)" }}>or pick a date range:</span>
+          <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} />
           <span>to</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
-          <button
-            onClick={() => {
-              if (startDate && endDate) {
-                // force a refresh by bumping trendDays to itself
-                setTrendDays(d => d);
-              }
-            }}
-            disabled={!(startDate && endDate)}
-          >
-            Apply
-          </button>
-          <button
-            onClick={() => {
-              setStartDate(""); setEndDate("");
-              setTrendDays(7);
-            }}
-            disabled={!(startDate || endDate)}
-          >
-            Clear
-          </button>
+          <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} />
 
-          {/* Export CSV (works for either mode) */}
-          <button
+          <button className="btn"
+            onClick={()=>{ if (startDate && endDate) setTrendDays(d=>d); }}
+            disabled={!(startDate && endDate)}>Apply</button>
+          <button className="btn"
+            onClick={()=>{ setStartDate(""); setEndDate(""); setTrendDays(7); }}
+            disabled={!(startDate || endDate)}>Clear</button>
+
+          <button className="btn"
             disabled={!trend?.length}
-            onClick={() => {
-              const label = (startDate && endDate)
-                ? `${startDate}_to_${endDate}`
-                : `${trendDays}d`;
-              const today = new Date().toISOString().slice(0, 10);
-              const headers = ["OBS_DATE", "GHI_MEAN"];
-              const rows = trend.map(r => [
-                r.OBS_DATE,
-                typeof r.GHI_MEAN === "number" ? r.GHI_MEAN.toFixed(2) : r.GHI_MEAN
-              ]);
-              downloadCsv(`ghi_trend_${zip}_${label}_${today}.csv`, headers, rows);
-            }}
-          >
-            Export CSV
-          </button>
+            onClick={()=>{
+              const label = (startDate && endDate) ? `${startDate}_to_${endDate}` : `${trendDays}d`;
+              const today = new Date().toISOString().slice(0,10);
+              downloadCsv(`ghi_trend_${zip}_${label}_${today}.csv`,
+                ["OBS_DATE","GHI_MEAN"],
+                trend.map(r=>[r.OBS_DATE, typeof r.GHI_MEAN==="number"? r.GHI_MEAN.toFixed(2): r.GHI_MEAN]));
+            }}>Export CSV</button>
         </div>
 
-        <div style={{ width: "100%", height: 340, marginTop: 12, background: "#0b0b0b08", borderRadius: 8 }}>
+        <div className="chart">
           <ResponsiveContainer>
             <LineChart data={trend}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="OBS_DATE" />
-              <YAxis />
+              <XAxis dataKey="OBS_DATE" stroke="var(--muted)"/>
+              <YAxis stroke="var(--muted)"/>
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="GHI_MEAN" dot={false} />
+              <Line type="monotone" dataKey="GHI_MEAN" stroke="var(--primary)" strokeWidth={2} dot={false}/>
             </LineChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      {/* forecast */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Forecast (next {trendDays} days)</h2>
+      {/* FORECAST */}
+      <section className="card">
+        <h2 style={{ marginTop:0 }}>Forecast (next {trendDays} days)</h2>
         {startDate || endDate ? (
-          <div style={{ color: "#666" }}>
-            Pick “Days” mode (clear the date range) to view forecast. Forecast is based on a 7-day moving average.
+          <div style={{ color:"var(--muted)" }}>
+            Pick “Days” mode (clear the date range) to view forecast. Forecast uses a 7-day moving average.
           </div>
         ) : (
-          <div style={{ width: "100%", height: 300, background: "#0b0b0b08", borderRadius: 8 }}>
+          <div className="chart" style={{ height:300 }}>
             <ResponsiveContainer>
               <LineChart data={forecast}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="FCST_DATE" />
-                <YAxis />
+                <XAxis dataKey="FCST_DATE" stroke="var(--muted)"/>
+                <YAxis stroke="var(--muted)"/>
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="GHI_PREDICTED" dot={false} />
+                <Line type="monotone" dataKey="GHI_PREDICTED" stroke="var(--accent)" strokeWidth={2} dot={false}/>
               </LineChart>
             </ResponsiveContainer>
           </div>
