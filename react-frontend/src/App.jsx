@@ -5,7 +5,8 @@ import {
   fetchZips,
   fetchGhiTrend,
   fetchGhiTrendRange,
-  fetchForecast
+  fetchForecast,
+  fetchStatus
 } from "./api/client";
 import {
   BarChart,
@@ -30,10 +31,11 @@ export default function App() {
   const [zip, setZip] = useState("");
   const [trendDays, setTrendDays] = useState(7);
   const [trend, setTrend] = useState([]);
-  const [err, setErr] = useState("");
   const [forecast, setForecast] = useState([]);
+  const [statusData, setStatusData] = useState(null);
+  const [err, setErr] = useState("");
 
-  // initial load
+  // initial load (summaries, today, zips)
   useEffect(() => {
     (async () => {
       try {
@@ -53,6 +55,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // status load (on mount + manual refresh button)
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await fetchStatus();
+        setStatusData(s);
+      } catch (e) {
+        setErr(e.message || "Failed to load status");
+      }
+    })();
+  }, []);
+
   // forecast loads only in "Days" mode (not when a custom date range is active)
   useEffect(() => {
     if (!zip || startDate || endDate) {
@@ -69,7 +83,7 @@ export default function App() {
     })();
   }, [zip, trendDays, startDate, endDate]);
 
-  // load trend whenever zip/days or date range change
+  // trend loads on zip/days change or when date range is set
   useEffect(() => {
     if (!zip) return;
     (async () => {
@@ -93,6 +107,81 @@ export default function App() {
       <div style={{ color: "#666" }}>Live from Snowflake via Azure Functions</div>
 
       {err && <div style={{ marginTop: 16, color: "crimson" }}>Error: {err}</div>}
+
+      {/* status */}
+      <section style={{ marginTop: 20, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <h2 style={{ margin: 0 }}>Status</h2>
+          <div style={{ fontSize: 12, color: "#666" }}>
+            {statusData?.server_time_utc ? `Updated: ${statusData.server_time_utc}` : "—"}
+            <button
+              style={{ marginLeft: 12 }}
+              onClick={async () => {
+                try {
+                  const s = await fetchStatus();
+                  setStatusData(s);
+                } catch (e) {
+                  setErr(e.message || "Failed to refresh status");
+                }
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {!statusData ? (
+          <div style={{ color: "#666", marginTop: 8 }}>Loading…</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+              {statusData.per_zip.map((pz) => {
+                const okIngest = pz.INGEST_TODAY;
+                const okFc = pz.FORECAST_7D;
+                const allOk = okIngest && okFc;
+                const bg = allOk ? "#e6ffed" : (okIngest || okFc) ? "#fff7e6" : "#ffe6e6";
+                const badge = allOk ? "OK" : (okIngest || okFc) ? "WARN" : "FAIL";
+                return (
+                  <div key={pz.ZIP} style={{ padding: 10, borderRadius: 6, background: bg, minWidth: 200 }}>
+                    <div style={{ fontWeight: 600 }}>{pz.ZIP} — {badge}</div>
+                    <div style={{ fontSize: 13, color: "#444" }}>
+                      Ingest today: {okIngest ? "Yes" : "No"} • Forecast 7d: {okFc ? "Yes" : "No"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <details style={{ marginTop: 10 }}>
+              <summary>Details</summary>
+              <div style={{ marginTop: 8, fontSize: 14 }}>
+                <div><strong>Summaries today:</strong> {statusData.summaries.TODAY_SUMMARIES}</div>
+                <div><strong>Last summary created:</strong> {statusData.summaries.LAST_CREATED || "—"}</div>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <strong>Ingestion</strong>
+                <ul style={{ marginTop: 4 }}>
+                  {statusData.ingestion.map((r, i) => (
+                    <li key={i} style={{ fontSize: 14 }}>
+                      {r.ZIP}: last_obs = {r.LAST_OBS || "—"}, today_rows = {r.TODAY_ROWS}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <strong>Forecast table</strong>
+                <ul style={{ marginTop: 4 }}>
+                  {statusData.forecast.map((f, i) => (
+                    <li key={i} style={{ fontSize: 14 }}>
+                      {f.ZIP}: days={f.DAYS}, range={f.FIRST_DATE || "—"} → {f.LAST_DATE || "—"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </details>
+          </>
+        )}
+      </section>
 
       {/* summaries */}
       <section style={{ marginTop: 24 }}>

@@ -7,6 +7,13 @@ function getJson(url) {
     return r.json();
   });
 }
+export function fetchStatus() {
+  const API = import.meta.env.VITE_API_BASE || "/api";
+  return fetch(`${API}/status`).then(r => {
+    if (!r.ok) throw new Error(`/status -> ${r.status}`);
+    return r.json();
+  });
+}
 
 export function fetchSummaries() {
   return getJson(`${API}/summaries`);
